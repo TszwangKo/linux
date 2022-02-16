@@ -1149,7 +1149,7 @@ static bool resman_create_resource(const char *name,
 	}
 	if (i >= ARRAY_SIZE(resources_map)) {
 		if (strlen(name) < 4) {
-			dprintk(0, "At least 4 letters are required for resource name %s.\n");
+			dprintk(0, "At least 4 letters are required for resource name %s.\n", name);
 			goto error;
 		}
 		r0 = name[0];
@@ -1516,16 +1516,16 @@ static bool ext_resource_init(void)
 		goto error;
 	}
 	if (flen > EXT_MAX_SIZE)
-		dprintk(0, "extconfig file is too large%d\n", stat.size);
+		dprintk(0, "extconfig file is too large%lld\n", stat.size);
 	else
-		dprintk(3, "%s file size %d\n", __func__, stat.size);
+		dprintk(3, "%s file size %lld\n", __func__, stat.size);
 	flen = (stat.size > EXT_MAX_SIZE) ? EXT_MAX_SIZE : stat.size;
 	extconfig = kzalloc(flen + 8, GFP_KERNEL);
 	if (extconfig) {
 		readlen = vfs_read(extfile, extconfig,
 					flen, &pos);
 		if (readlen < flen)
-			dprintk(0, "size %d read %d\n", flen, readlen);
+			dprintk(0, "size %lld read %ld\n", flen, readlen);
 #ifdef RESMAM_ENABLE_JSON
 		ret = resman_config_from_json(extconfig);
 #else

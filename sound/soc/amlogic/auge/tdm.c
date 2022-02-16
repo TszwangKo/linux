@@ -648,7 +648,7 @@ static int tdmin_src_enum_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	if (p) {
-		pr_info("%s(), strlen = %d\n",
+		pr_info("%s(), strlen = %ld\n",
 				__func__, strlen(p));
 		memcpy(p, tdmin_source_text[value],	strlen(p));
 	}
