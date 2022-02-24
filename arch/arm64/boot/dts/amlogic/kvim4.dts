@@ -8,7 +8,7 @@
 #include "mesont7.dtsi"
 #include "partition_linux.dtsi"
 #include <dt-bindings/input/input.h>
-#include "mesont7_an400-panel.dtsi"
+#include "khadas-ts050-panel.dtsi"
 
 / {
 	model = "Khadas VIM4";
