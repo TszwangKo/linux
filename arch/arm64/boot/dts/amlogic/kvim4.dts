@@ -8,7 +8,7 @@
 #include "mesont7.dtsi"
 #include "partition_linux.dtsi"
 #include <dt-bindings/input/input.h>
-#include "mesont7_an400-panel.dtsi"
+#include "khadas-ts050-panel.dtsi"
 
 / {
 	model = "Khadas VIM4";
@@ -574,7 +574,7 @@
 				system-clock-frequency = <12288000>;
 			};
 			tdmacodec: codec {
-				sound-dai = <&dummy_codec &es8316>;
+				sound-dai = <&dummy_codec>;
 			};
 		};
 
@@ -1342,10 +1342,10 @@
 	clock-frequency = <100000>; /* default 100k */
 
 	es8316: es8316@10 {
+		status = "disabled";
 		compatible = "everest,es8316";
 		#sound-dai-cells = <0>;
 		reg = <0x10>;
-		status = "okay";
 		//   spk-con-gpio = <&gpio GPIOH_5 0>;
 		//     spk-mute-gpio = <&gpio GPIOA_12 0>;
 	};
