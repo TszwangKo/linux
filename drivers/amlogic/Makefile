@@ -56,6 +56,8 @@ obj-$(CONFIG_DOLBY_FW) += dolby_fw/
 obj-$(CONFIG_AMLOGIC_CPU_INFO)          += cpu_info/
 obj-$(CONFIG_AMLOGIC_SOC_INFO) 		+= soc_info/
 obj-$(CONFIG_GATOR)	+= gator-driver/
+obj-$(CONFIG_AMLOGIC_TEE2) += tee_driver/
+
 obj-y   += media_modules/
 
 KBUILD_CFLAGS_MODULE += $(GKI_EXT_MODULE_PREDEFINE)
