@@ -801,6 +801,7 @@ static int mcu_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 		INIT_DELAYED_WORK(&g_mcu_data->fan_data.work, fan_work_func);
 		mcu_fan_level_set(&g_mcu_data->fan_data, 0);
+		schedule_delayed_work(&g_mcu_data->fan_data.work, MCU_FAN_LOOP_SECS);
 	}
 	create_mcu_attrs();
 
