@@ -368,7 +368,11 @@ static size_t fb_rmem_afbc_size[OSD_COUNT][OSD_MAX_BUF_NUM];
 
 int ion_fd[OSD_COUNT][OSD_MAX_BUF_NUM];
 
+#ifdef CONFIG_AMLOGIC_MEDIA_FB_OSD2_CURSOR
 static int osd_cursor(struct fb_info *fbi, struct fb_cursor *var);
+#else
+extern int  soft_cursor(struct fb_info *info, struct fb_cursor *cursor);
+#endif
 static void *map_virt_from_phys(phys_addr_t phys, unsigned long total_size);
 static void config_osd_table(u32 display_device_cnt);
 
@@ -1970,6 +1974,7 @@ static int osd_pan_display(struct fb_var_screeninfo *var,
 	return 0;
 }
 
+#ifdef CONFIG_AMLOGIC_MEDIA_FB_OSD2_CURSOR
 static int osd_cursor(struct fb_info *fbi, struct fb_cursor *var)
 {
 	s16 startx = 0, starty = 0;
@@ -1993,6 +1998,7 @@ static int osd_cursor(struct fb_info *fbi, struct fb_cursor *var)
 
 	return 0;
 }
+#endif
 
 static int osd_sync(struct fb_info *info)
 {
@@ -2009,10 +2015,11 @@ static struct fb_ops osd_ops = {
 	.fb_fillrect    = cfb_fillrect,
 	.fb_copyarea    = cfb_copyarea,
 	.fb_imageblit   = cfb_imageblit,
-#ifdef CONFIG_FB_SOFT_CURSOR
+#ifdef CONFIG_AMLOGIC_MEDIA_FB_OSD2_CURSOR
+	.fb_cursor      = osd_cursor,
+#else
 	.fb_cursor      = soft_cursor,
 #endif
-	.fb_cursor      = osd_cursor,
 	.fb_ioctl       = osd_ioctl,
 #ifdef CONFIG_COMPAT
 	.fb_compat_ioctl = osd_compat_ioctl,
