@@ -1429,7 +1429,7 @@
 	pinctrl-0=<&i2c0_ao_pins1>;
 	clock-frequency = <100000>; /* default 100k */
 
-	hym8563-rtc {
+	hym8563-rtc@51 {
 		compatible = "haoyu,hym8563";
 		reg = <0x51>;
 	};
