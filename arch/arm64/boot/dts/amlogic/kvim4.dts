@@ -1284,7 +1284,7 @@ vddio_card: gpio-regulator {
 
 &pcie {
 	reset-gpio = <&gpio GPIOH_3 GPIO_ACTIVE_HIGH>;
-	status = "disable";
+	status = "okay";
 };
 
 &i2c0 {
