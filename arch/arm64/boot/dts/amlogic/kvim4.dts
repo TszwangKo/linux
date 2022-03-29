@@ -213,8 +213,10 @@
 			regulator-name = "SDCARD_POWER";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
-			gpio = <&gpio GPIOD_11 GPIO_ACTIVE_HIGH>;
-			regulator-boot-on;
+			gpio = <&gpio GPIOD_11 GPIO_ACTIVE_LOW>;
+			enable-active-low;
+			regulator-always-on;
+
 	};
 
 	vddio_card: gpio-regulator {
