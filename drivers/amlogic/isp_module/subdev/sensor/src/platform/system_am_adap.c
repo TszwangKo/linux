@@ -458,20 +458,33 @@ static int write_data_to_buf(char *path, char *buf, int size)
 	mm_segment_t old_fs;
 	loff_t pos = 0;
 	unsigned int r_size = 0;
-
+	pr_info("before 1st get_fs");
 	old_fs = get_fs();
+	pr_info("before 1st set_fs");
 	set_fs(KERNEL_DS);
+	pr_info("1st set_fs working");
 	fp = filp_open(path, O_RDONLY, 0);
+	set_fs(old_fs);
+	pr_info("fp obtained");
 	if (IS_ERR(fp)) {
 		pr_info("read error.\n");
 		return -1;
 	}
+
+	pr_info("fp: %p ",fp);
+
+	pr_info("before 2nd get_fs");
+	old_fs = get_fs();
+	pr_info("before 2nd set_fs");
+	set_fs(KERNEL_DS);
+	pr_info("2nd set_fs working");
 	r_size = vfs_read(fp, buf, size, &pos);
-	pr_info("read r_size = %u, size = %u\n", r_size, size);
+	set_fs(old_fs);
 
 	vfs_fsync(fp, 0);
+
+	pr_info("read r_size = %u, size = %u\n", r_size, size);
 	filp_close(fp, NULL);
-	set_fs(old_fs);
 
 	return ret;
 }
@@ -492,7 +505,40 @@ static ssize_t inject_frame_read(struct device *dev,
 	return sprintf(buf, "%s\n", adapt_inject_usage_str);
 }
 
+void print_mode_flags(void){
+	pr_info("data_process_para: %u", data_process_para );
+	pr_info("  inject_frame: %u", ((data_process_para >> 29) & 0x1) );
+	pr_info("  frontend1_flag: %u", ((data_process_para >> 30) & 0x1) );
+	pr_info("  dump_data_flag: %u", ((data_process_para >> 28) & 0x1) );
+}
+void print_ddr_buff(void){
+	pr_info("Contents Of DDR_BUFF: ");
+	int i;
+	for ( i = 0; i < (int)DDR_BUF_SIZE; i++) {
+		pr_info("\t%d: %lld", i, ddr_buf[i]);
+	}
+}
 
+void print_mode(void){
+	pr_info("para.mode: ");
+	switch (para.mode)
+	{
+		case DDR_MODE:
+			pr_info("\tDDR_MODE");
+			break;
+
+		case DIR_MODE:
+			pr_info("\tDIR_MODE");
+			break;
+		
+		case DOL_MODE:
+			pr_info("\tDOL_MODE");
+			break;
+
+		default:
+			pr_info("\tNone");
+	}
+}
 static ssize_t inject_frame_write(struct device *dev,
 	struct device_attribute *attr, char const *buf, size_t size)
 {
@@ -534,12 +580,23 @@ static ssize_t inject_frame_write(struct device *dev,
 	stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
 	if (ddr_buf[DDR_BUF_SIZE - 1] != 0)
 		virt_buf = phys_to_virt(ddr_buf[DDR_BUF_SIZE - 1]);
+
+	print_mode();
+	print_ddr_buff();
+	print_mode_flags();
+	// if(!virt_buf){
+	// 	pr_err("virtual buffer not assigned");
+	// 	ret = -1;
+	// 	goto Err;
+	// }else{
+	// pr_info("virtual buffer assigned, %s",virt_buf);
 	file_size = stride * frame_height;
 	pr_info("inject frame width = %ld, height = %ld, bitdepth = %ld, size = %d\n",
 		frame_width, frame_height,
 		bit_depth, file_size);
 	write_data_to_buf(parm[0], virt_buf, file_size);
 
+	// }
 Err:
 	if (ret < 0)
 		err_note();
@@ -1157,7 +1214,7 @@ static irqreturn_t dol_isr(int irq, void *para)
 
 int am_adap_alloc_mem(void)
 {
-
+	pr_info("am_adap_alloc_mem called.");
 	if (para.mode == DDR_MODE) {
 		cma_pages = dma_alloc_from_contiguous(
 				  &(g_adap->p_dev->dev),
@@ -1169,6 +1226,7 @@ int am_adap_alloc_mem(void)
 			return 0;
 		}
 		isp_cma_mem = phys_to_virt(buffer_start);
+		pr_info("buffer_start allocated: %llu",buffer_start);
 	} else if (para.mode == DOL_MODE) {
 		cma_pages = dma_alloc_from_contiguous(
 				  &(g_adap->p_dev->dev),
@@ -1211,6 +1269,7 @@ int am_adap_free_mem(void)
 
 int am_adap_init(void)
 {
+	
 	int ret = 0;
 	int depth;
 	int i;
@@ -1305,11 +1364,15 @@ int am_adap_init(void)
 	am_adap_pixel_init();
 	am_adap_alig_init();
 
+	pr_info("debug : adapter_initialised");
+
 	return 0;
 }
 
 int am_adap_start(int idx)
 {
+	pr_info("debug : adapter_initialised");
+	
 	am_adap_alig_start();
 	am_adap_pixel_start();
 	am_adap_reader_start();
