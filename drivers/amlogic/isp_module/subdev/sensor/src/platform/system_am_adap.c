@@ -88,6 +88,22 @@ static unsigned int frontend1_flag;
 module_param(data_process_para, uint, 0664);
 MODULE_PARM_DESC(data_process_para, "\n control inject or dump data parameter from adapter\n");
 
+/* setting  Parameters for adapter */
+void set_info(struct am_adap_info *info){
+	info->fmt = AM_RAW12;
+    info->img.width = 1920;
+    info->img.height = 1080;
+    info->path = PATH0;
+	info->mode = DDR_MODE;
+}
+
+/**
+ * @brief returns ceil(val/mod)
+ * 
+ * @param val 
+ * @param mod 
+ * @return int 
+ */
 static int ceil_upper(int val, int mod)
 {
 	int ret = 0;
@@ -125,6 +141,12 @@ static void parse_param(char *buf_orig, char **parm, int num)
 	}
 }
 
+/**
+ * @brief For getting parameters from string during fram injection
+ * 
+ * @param input 
+ * @return long 
+ */
 static long getulfromstr(char* input)
 {
 	long out = 0;
@@ -135,6 +157,7 @@ static long getulfromstr(char* input)
 	}
 	return out;
 }
+
 
 int write_index_to_file(char *path, char *buf, int index, int size)
 {
@@ -165,6 +188,7 @@ int write_index_to_file(char *path, char *buf, int index, int size)
 	nwrite=vfs_write(fp, buf, size, &pos);
 	offset +=nwrite;
 
+	//? Should there be a vds_fsync here ?
 	if (fp) {
 		filp_close(fp, NULL);
 	}
@@ -459,19 +483,22 @@ static int write_data_to_buf(char *path, char *buf, int size)
 	loff_t pos = 0;
 	unsigned int r_size = 0;
 
+
+	/*setting datasegment to kernel to avoid -EFAULT*/
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 	fp = filp_open(path, O_RDONLY, 0);
+	set_fs(old_fs);
 	if (IS_ERR(fp)) {
 		pr_info("read error.\n");
 		return -1;
 	}
-	r_size = vfs_read(fp, buf, size, &pos);
-	pr_info("read r_size = %u, size = %u\n", r_size, size);
 
+	r_size = vfs_read(fp, buf, size, &pos);
 	vfs_fsync(fp, 0);
+
+	pr_info("read r_size = %u, size = %u\n", r_size, size);
 	filp_close(fp, NULL);
-	set_fs(old_fs);
 
 	return ret;
 }
@@ -493,9 +520,47 @@ static ssize_t inject_frame_read(struct device *dev,
 }
 
 
+void print_ddr_buff(void){
+	pr_info("Contents Of DDR_BUFF: ");
+	int i;
+	for ( i = 0; i < (int)DDR_BUF_SIZE; i++) {
+		pr_info("\t%d: %lld", i, ddr_buf[i]);
+	}
+}
+
+void print_mode(void){
+	pr_info("para.mode: ");
+	switch (para.mode)
+	{
+		case DDR_MODE:
+			pr_info("\tDDR_MODE");
+			break;
+
+		case DIR_MODE:
+			pr_info("\tDIR_MODE");
+			break;
+		
+		case DOL_MODE:
+			pr_info("\tDOL_MODE");
+			break;
+
+		default:
+			pr_info("\tNone");
+	}
+}
+int adap_inited = -1;
 static ssize_t inject_frame_write(struct device *dev,
 	struct device_attribute *attr, char const *buf, size_t size)
 {
+	// Initialising adap
+	if(adap_inited == -1){
+		struct am_adap_info info;
+		memset(&info, 0, sizeof(struct am_adap_info));
+		set_info(&info);
+		am_adap_set_info(&info);
+		am_adap_init();
+		am_adap_start(0);
+	}
 	char *buf_orig, *parm[100] = {NULL};
 	long stride = 0;
 	long frame_width = 0;
@@ -534,12 +599,22 @@ static ssize_t inject_frame_write(struct device *dev,
 	stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
 	if (ddr_buf[DDR_BUF_SIZE - 1] != 0)
 		virt_buf = phys_to_virt(ddr_buf[DDR_BUF_SIZE - 1]);
+
+	print_mode();
+	print_ddr_buff();
+	// if(!virt_buf){
+	// 	pr_err("virtual buffer not assigned");
+	// 	ret = -1;
+	// 	goto Err;
+	// }else{
+	// pr_info("virtual buffer assigned, %s",virt_buf);
 	file_size = stride * frame_height;
 	pr_info("inject frame width = %ld, height = %ld, bitdepth = %ld, size = %d\n",
 		frame_width, frame_height,
 		bit_depth, file_size);
 	write_data_to_buf(parm[0], virt_buf, file_size);
 
+	// }
 Err:
 	if (ret < 0)
 		err_note();
@@ -689,6 +764,7 @@ int get_fte1_flag(void)
 int am_adap_get_depth(void)
 {
 	int depth = 0;
+
 	switch (para.fmt) {
 		case AM_RAW6:
 			depth = 6;
@@ -1211,6 +1287,11 @@ int am_adap_free_mem(void)
 
 int am_adap_init(void)
 {
+	pr_info("Initialising adapter");
+	// *tells frame_inject whether adapter has been initialised
+	adap_inited = 0;
+
+
 	int ret = 0;
 	int depth;
 	int i;
@@ -1246,6 +1327,7 @@ int am_adap_init(void)
 		am_adap_alloc_mem();
 		depth = am_adap_get_depth();
 		if ((cma_pages) && (para.mode == DDR_MODE)) {
+			pr_info("DEBUG: buffer initialised");
 			//note important : ddr_buf[0] and ddr_buf[1] address should alignment 16 byte
 			stride = (para.img.width * depth)/8;
 			stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
