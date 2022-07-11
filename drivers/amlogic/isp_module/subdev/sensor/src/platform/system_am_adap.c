@@ -88,6 +88,22 @@ static unsigned int frontend1_flag;
 module_param(data_process_para, uint, 0664);
 MODULE_PARM_DESC(data_process_para, "\n control inject or dump data parameter from adapter\n");
 
+/* setting  Parameters for adapter */
+void set_info(struct am_adap_info *info){
+	info->fmt = AM_RAW12;
+    info->img.width = 1920;
+    info->img.height = 1080;
+    info->path = PATH0;
+	info->mode = DDR_MODE;
+}
+
+/**
+ * @brief returns ceil(val/mod)
+ * 
+ * @param val 
+ * @param mod 
+ * @return int 
+ */
 static int ceil_upper(int val, int mod)
 {
 	int ret = 0;
@@ -104,6 +120,13 @@ static int ceil_upper(int val, int mod)
 	return ret;
 }
 
+/**
+ * @brief Separates buf_orig into different parameters and store them in **param
+ * 
+ * @param buf_orig 
+ * @param parm 
+ * @param num 
+ */
 static void parse_param(char *buf_orig, char **parm, int num)
 {
 	char *ps, *token;
@@ -125,6 +148,12 @@ static void parse_param(char *buf_orig, char **parm, int num)
 	}
 }
 
+/**
+ * @brief For getting parameters from string during fram injection
+ * 
+ * @param input 
+ * @return long 
+ */
 static long getulfromstr(char* input)
 {
 	long out = 0;
@@ -135,6 +164,7 @@ static long getulfromstr(char* input)
 	}
 	return out;
 }
+
 
 int write_index_to_file(char *path, char *buf, int index, int size)
 {
@@ -165,6 +195,7 @@ int write_index_to_file(char *path, char *buf, int index, int size)
 	nwrite=vfs_write(fp, buf, size, &pos);
 	offset +=nwrite;
 
+	//? Should there be a vds_fsync here ?//
 	if (fp) {
 		filp_close(fp, NULL);
 	}
@@ -173,7 +204,14 @@ exit:
 	set_fs(old_fs);
 	return ret;
 }
-
+/**
+ * @brief updates the masked bit in reg + io_type base offset
+ * 
+ * @param reg: Register to write to 
+ * @param io_type: type of io (provides base offset)
+ * @param mask: mask for the bit you want to write
+ * @param val: value to be written
+ */
 static inline void update_wr_reg_bits(unsigned int reg,
 				adap_io_type_t io_type, unsigned int mask,
 				unsigned int val)
@@ -283,6 +321,7 @@ static inline void mipi_adap_reg_rd(int addr, adap_io_type_t io_type, uint32_t *
 
 }
 
+// ?Not sure what this does 
 static ssize_t adapt_frame_read(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -309,6 +348,7 @@ static ssize_t adapt_frame_write(struct device *dev,
 	if (!buf)
 		return ret;
 
+	//duplicate charbuffer
 	buf_orig = kstrdup(buf, GFP_KERNEL);
 	if (!buf_orig)
 		return ret;
@@ -340,6 +380,7 @@ static ssize_t adapt_frame_write(struct device *dev,
 	}
 
 	depth = am_adap_get_depth();
+	// v determining size of each line in bytes
 	stride = ((dump_width * depth)/8);
 	stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
 	frame_index = ((data_process_para) & (0xfffffff));
@@ -458,29 +499,19 @@ static int write_data_to_buf(char *path, char *buf, int size)
 	mm_segment_t old_fs;
 	loff_t pos = 0;
 	unsigned int r_size = 0;
-	pr_info("before 1st get_fs");
+
+
+	/*setting datasegment to kernel to avoid -EFAULT*/
 	old_fs = get_fs();
-	pr_info("before 1st set_fs");
 	set_fs(KERNEL_DS);
-	pr_info("1st set_fs working");
 	fp = filp_open(path, O_RDONLY, 0);
 	set_fs(old_fs);
-	pr_info("fp obtained");
 	if (IS_ERR(fp)) {
 		pr_info("read error.\n");
 		return -1;
 	}
 
-	pr_info("fp: %p ",fp);
-
-	pr_info("before 2nd get_fs");
-	old_fs = get_fs();
-	pr_info("before 2nd set_fs");
-	set_fs(KERNEL_DS);
-	pr_info("2nd set_fs working");
 	r_size = vfs_read(fp, buf, size, &pos);
-	set_fs(old_fs);
-
 	vfs_fsync(fp, 0);
 
 	pr_info("read r_size = %u, size = %u\n", r_size, size);
@@ -505,12 +536,7 @@ static ssize_t inject_frame_read(struct device *dev,
 	return sprintf(buf, "%s\n", adapt_inject_usage_str);
 }
 
-void print_mode_flags(void){
-	pr_info("data_process_para: %u", data_process_para );
-	pr_info("  inject_frame: %u", ((data_process_para >> 29) & 0x1) );
-	pr_info("  frontend1_flag: %u", ((data_process_para >> 30) & 0x1) );
-	pr_info("  dump_data_flag: %u", ((data_process_para >> 28) & 0x1) );
-}
+
 void print_ddr_buff(void){
 	pr_info("Contents Of DDR_BUFF: ");
 	int i;
@@ -539,9 +565,104 @@ void print_mode(void){
 			pr_info("\tNone");
 	}
 }
+static int get_next_wr_buf_index(int inject_flag)
+{
+	int index = 0;
+	wbuf_index = wbuf_index + 1;
+
+	if (inject_flag) {
+		index = wbuf_index % (DDR_BUF_SIZE - 1);
+	} else {
+		if (dump_flag) {
+			index = wbuf_index % DDR_BUF_SIZE;
+			if (index == dump_buf_index) {
+				wbuf_index = wbuf_index + 1;
+				index = wbuf_index % DDR_BUF_SIZE;
+			}
+		} else if (current_flag){
+			index = wbuf_index % DDR_BUF_SIZE;
+			if (index == cur_buf_index) {
+				wbuf_index = wbuf_index + 1;
+				index = wbuf_index % DDR_BUF_SIZE;
+			}
+		} else {
+			index = wbuf_index % DDR_BUF_SIZE;
+		}
+	}
+
+	return index;
+}
+static resource_size_t read_buf;
+static int next_buf_index;
+static irqreturn_t manual_isr(int irq, void *para)
+{
+	uint32_t data = 0;
+	resource_size_t val = 0;
+	int kfifo_ret = 0;
+	int inject_data_flag = ((data_process_para >> 29) & 0x1);
+	int frame_index = ((data_process_para) & (0xfffffff));
+
+	mipi_adap_reg_rd(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, &data);
+	pr_info("irq return request called, status: %u",data);
+	if (data & (1 << 19)) {
+		pr_info("data segment exists");
+		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 19, 1); //clear write done irq
+		if ((dump_cur_flag) && (next_buf_index == cur_buf_index)) {
+			current_flag = 1;
+		}
+		if (!control_flag) {
+			if (!kfifo_is_full(&adapt_fifo)) {
+				kfifo_in(&adapt_fifo, &ddr_buf[next_buf_index], sizeof(resource_size_t));
+				irq_count = irq_count + 1;
+				if (irq_count == frame_index) {
+					dump_buf_index = next_buf_index;
+					dump_flag = 1;
+				}
+			} else {
+				pr_info("adapt fifo is full .\n");
+			}
+
+			next_buf_index = get_next_wr_buf_index(inject_data_flag);
+			val = ddr_buf[next_buf_index];
+			adap_wr_reg_bits(CSI2_DDR_START_PIX, FRONTEND_IO, val, 0, 32);
+		}
+		if ((!control_flag) && (kfifo_len(&adapt_fifo) > 0)) {
+			pr_info("IRQ requests logic block entered.");
+			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+			kfifo_ret = kfifo_out(&adapt_fifo, &val, sizeof(val));
+			read_buf = val;
+			control_flag = 1;
+		}
+
+	}
+
+	if (data & (1 << 13)) {
+		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 13, 1);
+		if (inject_data_flag) {
+			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, ddr_buf[DDR_BUF_SIZE - 1], 0, 32);
+		} else {
+			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, read_buf, 0, 32);
+		}
+		control_flag = 0;
+	}
+
+	return IRQ_HANDLED;
+}
+
+int adap_inited = -1;
+
 static ssize_t inject_frame_write(struct device *dev,
 	struct device_attribute *attr, char const *buf, size_t size)
 {
+	// Initialising adap
+	if(adap_inited == -1){
+		struct am_adap_info info;
+		memset(&info, 0, sizeof(struct am_adap_info));
+		set_info(&info);
+		am_adap_set_info(&info);
+		am_adap_init();
+		am_adap_start(0);
+	}
 	char *buf_orig, *parm[100] = {NULL};
 	long stride = 0;
 	long frame_width = 0;
@@ -577,26 +698,25 @@ static ssize_t inject_frame_write(struct device *dev,
 	}
 
 	stride = (frame_width * bit_depth)/8;
+	pr_info("line width: %lu", stride);
 	stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
+	pr_info("stride: %lu", stride);
 	if (ddr_buf[DDR_BUF_SIZE - 1] != 0)
 		virt_buf = phys_to_virt(ddr_buf[DDR_BUF_SIZE - 1]);
 
 	print_mode();
 	print_ddr_buff();
-	print_mode_flags();
-	// if(!virt_buf){
-	// 	pr_err("virtual buffer not assigned");
-	// 	ret = -1;
-	// 	goto Err;
-	// }else{
-	// pr_info("virtual buffer assigned, %s",virt_buf);
+
 	file_size = stride * frame_height;
 	pr_info("inject frame width = %ld, height = %ld, bitdepth = %ld, size = %d\n",
 		frame_width, frame_height,
 		bit_depth, file_size);
-	write_data_to_buf(parm[0], virt_buf, file_size);
 
-	// }
+	pr_info("edit 1.0.0");
+	write_data_to_buf(parm[0], virt_buf, file_size);
+	pr_info("returned");
+	manual_isr(0,NULL);
+
 Err:
 	if (ret < 0)
 		err_note();
@@ -746,6 +866,7 @@ int get_fte1_flag(void)
 int am_adap_get_depth(void)
 {
 	int depth = 0;
+
 	switch (para.fmt) {
 		case AM_RAW6:
 			depth = 6;
@@ -787,6 +908,7 @@ int am_disable_irq(void)
 
 void am_adap_frontend_start(void)
 {
+	pr_info("Starting adap_frontend...");
 	int width = para.img.width;
 	int depth, val;
 	depth = am_adap_get_depth();
@@ -943,6 +1065,7 @@ int am_adap_frontend_init(void)
 
 void am_adap_reader_start(void)
 {
+	pr_info("starting adap_reader...");
 	int height = para.img.height;
 	int width = para.img.width;
 	int val, depth;
@@ -990,6 +1113,7 @@ int am_adap_reader_init(void)
 
 void am_adap_pixel_start(void)
 {
+	pr_info("starting pixel...");
 	int fmt = para.fmt;
 	int width = para.img.width;
 	adap_wr_reg_bits(MIPI_ADAPT_PIXEL0_CNTL0, PIXEL_IO, fmt, 13, 3);
@@ -1030,12 +1154,14 @@ int am_adap_pixel_init(void)
 
 void am_adap_alig_start(void)
 {
-	int width, height, alig_width, alig_height, val;
+	pr_info("starting align...");
+	unsigned width, height, alig_width, alig_height, val;
 	width = para.img.width;
 	height = para.img.height;
 	alig_width = width + 40; //hblank > 32 cycles
 	alig_height = height + 60; //vblank > 48 lines
 	val = width + 35; // width < val < alig_width
+	pr_info("Parsmeters: \n\t\twidth:%u, height:%u, alig_width:%u, alig_height:%u", width, height, alig_width, alig_height);
 	adap_wr_reg_bits(MIPI_ADAPT_ALIG_CNTL0, ALIGN_IO, alig_width, 0, 13);
 	adap_wr_reg_bits(MIPI_ADAPT_ALIG_CNTL0, ALIGN_IO, alig_height, 16, 13);
 	adap_wr_reg_bits(MIPI_ADAPT_ALIG_CNTL1, ALIGN_IO, width, 16, 13);
@@ -1047,6 +1173,8 @@ void am_adap_alig_start(void)
 
 int am_adap_alig_init(void)
 {
+	pr_info("Initialising align...");
+	int ddr_set = -1;
 	if (para.mode == DOL_MODE) {
 		mipi_adap_reg_wr(MIPI_ADAPT_ALIG_CNTL0, ALIGN_IO, 0x078a043a);//associate width and height
 		mipi_adap_reg_wr(MIPI_ADAPT_ALIG_CNTL1, ALIGN_IO, 0x07800000);//associate width
@@ -1062,6 +1190,7 @@ int am_adap_alig_init(void)
 		mipi_adap_reg_wr(MIPI_ADAPT_ALIG_CNTL7, ALIGN_IO, 0xc350c000);
 		mipi_adap_reg_wr(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x85231020);
 	} else if (para.mode == DDR_MODE) {
+		ddr_set = 0;
 		mipi_adap_reg_wr(MIPI_ADAPT_ALIG_CNTL6, ALIGN_IO, 0x00fff001);
 		mipi_adap_reg_wr(MIPI_ADAPT_ALIG_CNTL7, ALIGN_IO, 0x0);
 		mipi_adap_reg_wr(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80000020);
@@ -1072,6 +1201,11 @@ int am_adap_alig_init(void)
 	} else {
 		pr_err("Not supported mode.\n");
 	}
+	if(ddr_set == -1){
+		pr_info("WARNING: alignment not set for DDR");
+	} else {
+		pr_info("Alignment set up for DDR");
+	}
 	mipi_adap_reg_wr(MIPI_ADAPT_IRQ_MASK0, ALIGN_IO, 0x01082000);
 
 	return 0;
@@ -1080,37 +1214,38 @@ int am_adap_alig_init(void)
 /*
  *========================AM ADAPTER INTERFACE==========================
  */
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! moved up to manual_isr!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// static int get_next_wr_buf_index(int inject_flag)
+// {
+// 	int index = 0;
+// 	wbuf_index = wbuf_index + 1;
 
-static int get_next_wr_buf_index(int inject_flag)
-{
-	int index = 0;
-	wbuf_index = wbuf_index + 1;
+// 	if (inject_flag) {
+// 		index = wbuf_index % (DDR_BUF_SIZE - 1);
+// 	} else {
+// 		if (dump_flag) {
+// 			index = wbuf_index % DDR_BUF_SIZE;
+// 			if (index == dump_buf_index) {
+// 				wbuf_index = wbuf_index + 1;
+// 				index = wbuf_index % DDR_BUF_SIZE;
+// 			}
+// 		} else if (current_flag){
+// 			index = wbuf_index % DDR_BUF_SIZE;
+// 			if (index == cur_buf_index) {
+// 				wbuf_index = wbuf_index + 1;
+// 				index = wbuf_index % DDR_BUF_SIZE;
+// 			}
+// 		} else {
+// 			index = wbuf_index % DDR_BUF_SIZE;
+// 		}
+// 	}
 
-	if (inject_flag) {
-		index = wbuf_index % (DDR_BUF_SIZE - 1);
-	} else {
-		if (dump_flag) {
-			index = wbuf_index % DDR_BUF_SIZE;
-			if (index == dump_buf_index) {
-				wbuf_index = wbuf_index + 1;
-				index = wbuf_index % DDR_BUF_SIZE;
-			}
-		} else if (current_flag){
-			index = wbuf_index % DDR_BUF_SIZE;
-			if (index == cur_buf_index) {
-				wbuf_index = wbuf_index + 1;
-				index = wbuf_index % DDR_BUF_SIZE;
-			}
-		} else {
-			index = wbuf_index % DDR_BUF_SIZE;
-		}
-	}
+// 	return index;
+// }
 
-	return index;
-}
-
-static resource_size_t read_buf;
-static int next_buf_index;
+// static resource_size_t read_buf;
+// static int next_buf_index;
+//!!!!!!!!!!!!!!!!!!!!!!!!!!!MOVED UP TO MANUAL ISP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 static irqreturn_t adpapter_isr(int irq, void *para)
 {
 	uint32_t data = 0;
@@ -1120,8 +1255,9 @@ static irqreturn_t adpapter_isr(int irq, void *para)
 	int frame_index = ((data_process_para) & (0xfffffff));
 
 	mipi_adap_reg_rd(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, &data);
-
+	pr_info("irq return request called, status: %u",data);
 	if (data & (1 << 19)) {
+		pr_info("data segment exists");
 		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 19, 1); //clear write done irq
 		if ((dump_cur_flag) && (next_buf_index == cur_buf_index)) {
 			current_flag = 1;
@@ -1143,6 +1279,7 @@ static irqreturn_t adpapter_isr(int irq, void *para)
 			adap_wr_reg_bits(CSI2_DDR_START_PIX, FRONTEND_IO, val, 0, 32);
 		}
 		if ((!control_flag) && (kfifo_len(&adapt_fifo) > 0)) {
+			pr_info("IRQ requests logic block entered.");
 			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
 			kfifo_ret = kfifo_out(&adapt_fifo, &val, sizeof(val));
 			read_buf = val;
@@ -1214,7 +1351,7 @@ static irqreturn_t dol_isr(int irq, void *para)
 
 int am_adap_alloc_mem(void)
 {
-	pr_info("am_adap_alloc_mem called.");
+
 	if (para.mode == DDR_MODE) {
 		cma_pages = dma_alloc_from_contiguous(
 				  &(g_adap->p_dev->dev),
@@ -1226,7 +1363,6 @@ int am_adap_alloc_mem(void)
 			return 0;
 		}
 		isp_cma_mem = phys_to_virt(buffer_start);
-		pr_info("buffer_start allocated: %llu",buffer_start);
 	} else if (para.mode == DOL_MODE) {
 		cma_pages = dma_alloc_from_contiguous(
 				  &(g_adap->p_dev->dev),
@@ -1269,7 +1405,11 @@ int am_adap_free_mem(void)
 
 int am_adap_init(void)
 {
-	
+	pr_info("Initialising adapter");
+	// *tells frame_inject whether adapter has been initialised
+	adap_inited = 0;
+
+
 	int ret = 0;
 	int depth;
 	int i;
@@ -1305,6 +1445,7 @@ int am_adap_init(void)
 		am_adap_alloc_mem();
 		depth = am_adap_get_depth();
 		if ((cma_pages) && (para.mode == DDR_MODE)) {
+			pr_info("DEBUG: buffer initialised");
 			//note important : ddr_buf[0] and ddr_buf[1] address should alignment 16 byte
 			stride = (para.img.width * depth)/8;
 			stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
@@ -1364,15 +1505,12 @@ int am_adap_init(void)
 	am_adap_pixel_init();
 	am_adap_alig_init();
 
-	pr_info("debug : adapter_initialised");
-
 	return 0;
 }
 
 int am_adap_start(int idx)
 {
-	pr_info("debug : adapter_initialised");
-	
+	pr_info("starting adapter");
 	am_adap_alig_start();
 	am_adap_pixel_start();
 	am_adap_reader_start();
