@@ -565,6 +565,7 @@ void print_mode(void){
 			pr_info("\tNone");
 	}
 }
+//!!!!! v MOVED FROM LINE 1224 v
 static int get_next_wr_buf_index(int inject_flag)
 {
 	int index = 0;
@@ -592,62 +593,69 @@ static int get_next_wr_buf_index(int inject_flag)
 
 	return index;
 }
+
 static resource_size_t read_buf;
 static int next_buf_index;
-static irqreturn_t manual_isr(int irq, void *para)
-{
-	uint32_t data = 0;
-	resource_size_t val = 0;
-	int kfifo_ret = 0;
-	int inject_data_flag = ((data_process_para >> 29) & 0x1);
-	int frame_index = ((data_process_para) & (0xfffffff));
+//!!!!! ^ MOVED FROM LINE 1224 ^
 
-	mipi_adap_reg_rd(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, &data);
-	pr_info("irq return request called, status: %u",data);
-	if (data & (1 << 19)) {
-		pr_info("data segment exists");
-		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 19, 1); //clear write done irq
-		if ((dump_cur_flag) && (next_buf_index == cur_buf_index)) {
-			current_flag = 1;
-		}
-		if (!control_flag) {
-			if (!kfifo_is_full(&adapt_fifo)) {
-				kfifo_in(&adapt_fifo, &ddr_buf[next_buf_index], sizeof(resource_size_t));
-				irq_count = irq_count + 1;
-				if (irq_count == frame_index) {
-					dump_buf_index = next_buf_index;
-					dump_flag = 1;
-				}
-			} else {
-				pr_info("adapt fifo is full .\n");
-			}
 
-			next_buf_index = get_next_wr_buf_index(inject_data_flag);
-			val = ddr_buf[next_buf_index];
-			adap_wr_reg_bits(CSI2_DDR_START_PIX, FRONTEND_IO, val, 0, 32);
-		}
-		if ((!control_flag) && (kfifo_len(&adapt_fifo) > 0)) {
-			pr_info("IRQ requests logic block entered.");
-			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
-			kfifo_ret = kfifo_out(&adapt_fifo, &val, sizeof(val));
-			read_buf = val;
-			control_flag = 1;
-		}
+// static irqreturn_t manual_isr(int irq, void *para)
+// {
+// 	uint32_t data = 0;
+// 	resource_size_t val = 0;
+// 	int kfifo_ret = 0;
+// 	int inject_data_flag = ((data_process_para >> 29) & 0x1);
+// 	int frame_index = ((data_process_para) & (0xfffffff));
 
-	}
+// 	mipi_adap_reg_rd(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, &data);
+// 	pr_info("irq return request called, status: %u",data);
+// 	// if (data & (1 << 19)) {
+// 	static int ready = 1;
+// 	if (1) {
+// 		// pr_info("data segment exists");
+// 		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 19, 1); //clear write done irq
+// 		if ((dump_cur_flag) && (next_buf_index == cur_buf_index)) {
+// 			pr_info("current_flag = 1 ");
+// 			current_flag = 1;
+// 		}
+// 		if (!control_flag) {
+// 			if (!kfifo_is_full(&adapt_fifo)) {
+// 				kfifo_in(&adapt_fifo, &ddr_buf[next_buf_index], sizeof(resource_size_t));
+// 				irq_count = irq_count + 1;
+// 				if (irq_count == frame_index) {
+// 					dump_buf_index = next_buf_index;
+// 					dump_flag = 1;
+// 				}
+// 			} else {
+// 				pr_info("adapt fifo is full .\n");
+// 			}
 
-	if (data & (1 << 13)) {
-		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 13, 1);
-		if (inject_data_flag) {
-			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, ddr_buf[DDR_BUF_SIZE - 1], 0, 32);
-		} else {
-			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, read_buf, 0, 32);
-		}
-		control_flag = 0;
-	}
+// 			next_buf_index = get_next_wr_buf_index(inject_data_flag);
+// 			val = ddr_buf[next_buf_index];
+// 			adap_wr_reg_bits(CSI2_DDR_START_PIX, FRONTEND_IO, val, 0, 32);
+// 		}
+// 		if ((!control_flag) && (kfifo_len(&adapt_fifo) > 0)) {
+// 			pr_info("IRQ requests logic block entered.");
+// 			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+// 			kfifo_ret = kfifo_out(&adapt_fifo, &val, sizeof(val));
+// 			read_buf = val;
+// 			control_flag = 1;
+// 		}
+// 		ready = 0;
+// 	}
 
-	return IRQ_HANDLED;
-}
+// 	if (data & (1 << 13)) {
+// 		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 13, 1);
+// 		if (inject_data_flag) {
+// 			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, ddr_buf[DDR_BUF_SIZE - 1], 0, 32);
+// 		} else {
+// 			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, read_buf, 0, 32);
+// 		}
+// 		control_flag = 0;
+// 	}
+
+// 	return IRQ_HANDLED;
+// }
 
 int adap_inited = -1;
 
@@ -715,7 +723,7 @@ static ssize_t inject_frame_write(struct device *dev,
 	pr_info("edit 1.0.0");
 	write_data_to_buf(parm[0], virt_buf, file_size);
 	pr_info("returned");
-	manual_isr(0,NULL);
+	// manual_isr(0,NULL);
 
 Err:
 	if (ret < 0)
@@ -890,11 +898,13 @@ int am_adap_get_depth(void)
 			pr_err("Not supported data format.\n");
 			break;
 	}
+	pr_info("depth = %d",depth);
 	return depth;
 }
 
 int am_disable_irq(void)
 {
+	pr_info("DEBUG: IRQ disabled");
 	//disable irq mask
 	mipi_adap_reg_wr(CSI2_INTERRUPT_CTRL_STAT, FRONTEND_IO, 0xffffffff);
 	mipi_adap_reg_wr(MIPI_ADAPT_IRQ_MASK0, ALIGN_IO, 0xffffffff);
@@ -1257,7 +1267,7 @@ static irqreturn_t adpapter_isr(int irq, void *para)
 	mipi_adap_reg_rd(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, &data);
 	pr_info("irq return request called, status: %u",data);
 	if (data & (1 << 19)) {
-		pr_info("data segment exists");
+		//? v Clearing write down bit should make it 0 instead v ?//
 		adap_wr_reg_bits(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, 1, 19, 1); //clear write done irq
 		if ((dump_cur_flag) && (next_buf_index == cur_buf_index)) {
 			current_flag = 1;
