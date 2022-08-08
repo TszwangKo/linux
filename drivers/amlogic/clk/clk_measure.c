@@ -1319,7 +1319,7 @@ static int aml_clkmsr_probe(struct platform_device *pdev)
 
 	msr_clk_reg0 = of_iomap(np, 0);
 	msr_clk_reg2 = of_iomap(np, 1);
-	pr_info("msr_clk_reg0=%p,msr_clk_reg2=%p\n",
+	pr_info("msr_clk_reg0=0x%p,msr_clk_reg2=0x%p\n",
 		msr_clk_reg0, msr_clk_reg2);
 
 	if (of_property_read_u32(pdev->dev.of_node,

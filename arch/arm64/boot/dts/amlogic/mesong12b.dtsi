@@ -1783,7 +1783,7 @@
 	};
 
 	isp: isp@ff140000 {
-		compatible = "arm, isp";
+		compatible = "arm,isp";
 		reg = <0x0 0xff140000 0x0 0x00040000>;
 		reg-names = "ISP";
 		isp-efuse = <0xff630038 0x4000>;
@@ -1804,6 +1804,16 @@
 		interrupts = <0 179 0>;
 		interrupt-names = "adapter-irq";
 		mem_alloc = <48>;
+	};
+
+	reserved-memory {
+		isp_reserved: frame_buffer@0x68BDC000 {
+			compatible = "shared-dma-pool";
+			no-map;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0x0 0x68BDC000 0x0 0xf424000>;
+		};
 	};
 
 	phycsi: phy-csi@ff650000 {

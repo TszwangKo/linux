@@ -31,6 +31,7 @@
 #include <linux/input-polldev.h>
 #include <linux/amlogic/scpi_protocol.h>
 #include "adc_keypad.h"
+#include <linux/amlogic/pm.h>
 
 #define POLL_INTERVAL_DEFAULT 25
 #define KEY_JITTER_COUNT  1

@@ -159,6 +159,7 @@ void acamera_fw_process( acamera_context_t *p_ctx )
 
 void acamera_fw_raise_event( acamera_context_t *p_ctx, event_id_t event_id )
 { //dma writer events should be passed for the capture on freeze requirement
+    LOG( LOG_CRIT, "acamera_before event_queue" );
     if ( p_ctx->stab.global_freeze_firmware == 0 || event_id == event_id_new_frame || event_id == event_id_drop_frame
 #if defined( ISP_HAS_DMA_WRITER_FSM )
          || event_id == event_id_frame_buffer_fr_ready || event_id == event_id_frame_buffer_ds_ready || event_id == event_id_frame_buffer_metadata
@@ -170,6 +171,7 @@ void acamera_fw_raise_event( acamera_context_t *p_ctx, event_id_t event_id )
          || event_id == event_id_bsp_test_interrupt_finished
 #endif
          ) {
+        LOG( LOG_CRIT, "acamera_event_queue_push: event id=%d",event_id );
         acamera_event_queue_push( &p_ctx->fsm_mgr.event_queue, (int)( event_id ) );
 
         acamera_notify_evt_data_avail();
